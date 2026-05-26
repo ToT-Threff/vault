@@ -20,3 +20,4 @@ storage.rules.bak
 .DS_Store
 *.swp
 *.swo
+vault-ingest-sa.json
