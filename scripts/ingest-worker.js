@@ -196,11 +196,11 @@ async function listDocs(collectionPath, token) {
 }
 
 // ── Embedding via Ollama ──────────────────────────────────────────────────────
-async function embed(text) {
+async function embedOnce(text) {
   return new Promise((resolve, reject) => {
     const payload = JSON.stringify({
       model: EMBED_MODEL,
-      prompt: text.substring(0, 8000),
+      prompt: text.substring(0, 4000), // nomic-embed-text: 8192 token limit (~4000 safe chars)
     });
 
     const url = new URL(`${OLLAMA_HOST}/api/embeddings`);
@@ -223,7 +223,9 @@ async function embed(text) {
       res.on('end', () => {
         try {
           const parsed = JSON.parse(data);
-          if (!parsed.embedding || parsed.embedding.length !== EMBED_DIMS) {
+          if (parsed.error) {
+            reject(new Error(`Ollama error: ${parsed.error}`));
+          } else if (!parsed.embedding || parsed.embedding.length !== EMBED_DIMS) {
             reject(new Error(`Bad embedding: got ${parsed.embedding?.length ?? 0} dims, expected ${EMBED_DIMS}`));
           } else {
             resolve(parsed.embedding);
@@ -236,6 +238,18 @@ async function embed(text) {
     req.write(payload);
     req.end();
   });
+}
+
+async function embed(text, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await embedOnce(text);
+    } catch (err) {
+      if (i === retries - 1) throw err;
+      // Backoff: 800ms, 1600ms
+      await new Promise((r) => setTimeout(r, 800 * (i + 1)));
+    }
+  }
 }
 
 // ── Encode vector for Firestore REST ─────────────────────────────────────────
@@ -325,9 +339,12 @@ async function pollOnce() {
 const BOOTSTRAP_DIRS = [
   '/Users/ptolemy/Library/CloudStorage/GoogleDrive-ryan@omniatheatre.com/My Drive/AI-Projects/Saroya/bootstrap',
   '/Users/ptolemy/Library/CloudStorage/GoogleDrive-ryan@omniatheatre.com/My Drive/AI-Projects/Ptolemy/CROSS_WORKSPACE',
-  '/Users/ptolemy/Library/CloudStorage/GoogleDrive-ryan@omniatheatre.com/My Drive/AI-Projects/Ptolemy/omniland/BOOTSTRAP_OMNILAND/team_intel',
-  '/Users/ptolemy/Library/CloudStorage/GoogleDrive-ryan@omniatheatre.com/My Drive/AI-Projects/Ptolemy/omnia-theatre/BOOTSTRAP_OMNIA_THEATRE/team_intel',
+  '/Users/ptolemy/Library/CloudStorage/GoogleDrive-ryan@omniatheatre.com/My Drive/AI-Projects/Ptolemy/omniland/BOOTSTRAP_OMNILAND',
+  '/Users/ptolemy/Library/CloudStorage/GoogleDrive-ryan@omniatheatre.com/My Drive/AI-Projects/Ptolemy/omnia-theatre/BOOTSTRAP_OMNIA_THEATRE',
   '/Users/ptolemy/Library/CloudStorage/GoogleDrive-ryan@omniatheatre.com/My Drive/AI-Projects/Ptolemy/insain-ngen/BOOTSTRAP_INSAIN_NGEN',
+  '/Users/ptolemy/Library/CloudStorage/GoogleDrive-ryan@omniatheatre.com/My Drive/AI-Projects/Ptolemy/melodys-metronome/BOOTSTRAP_MELODYS_METRONOME',
+  '/Users/ptolemy/Library/CloudStorage/GoogleDrive-ryan@omniatheatre.com/My Drive/AI-Projects/Ptolemy/withoutequal/BOOTSTRAP_WITHOUTEQUAL',
+  '/Users/ptolemy/Library/CloudStorage/GoogleDrive-ryan@omniatheatre.com/My Drive/AI-Projects/Ptolemy/ptolemy-knowledge-base',
 ];
 
 async function ingestFile(filePath, token) {
