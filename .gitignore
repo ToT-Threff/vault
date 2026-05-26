@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+functions/node_modules/
+
+# Next.js
+.next/
+out/
+
+# Environment — NEVER commit secrets
+.env.local
+.env*.local
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+storage.rules.bak
+
+# System
+.DS_Store
+*.swp
+*.swo

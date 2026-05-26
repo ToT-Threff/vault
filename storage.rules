@@ -1,0 +1,40 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Ryan has omniscient access to all files
+    function isRyan() {
+      return request.auth != null && request.auth.token.email == 'ryan@omniatheatre.com';
+    }
+
+    function isWarden() {
+      return request.auth != null && request.auth.token.warden != null;
+    }
+
+    // Kingdom-level files — authenticated reads, warden + Ryan writes
+    match /files/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if isRyan() || isWarden();
+    }
+
+    // Warden-specific files — only that warden or Ryan
+    match /wardens/{wardenId}/{allPaths=**} {
+      allow read: if isRyan() || (request.auth != null && request.auth.token.warden == wardenId);
+      allow write: if isRyan() || (request.auth != null && request.auth.token.warden == wardenId);
+    }
+
+    // Exports and backups — Ryan only
+    match /exports/{allPaths=**} {
+      allow read, write: if isRyan();
+    }
+
+    match /backups/{allPaths=**} {
+      allow read, write: if isRyan();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

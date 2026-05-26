@@ -1,0 +1,101 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper functions ──────────────────────────────────────────────────────
+
+    // Ryan is the Emperor — omniscient access
+    function isRyan() {
+      return request.auth != null && request.auth.token.email == 'ryan@omniatheatre.com';
+    }
+
+    // Authenticated and claims a valid warden identity
+    function isWarden() {
+      return request.auth != null && request.auth.token.warden != null;
+    }
+
+    // The requesting user IS this participant
+    function isSelf(participantId) {
+      return request.auth != null && (
+        request.auth.token.warden == participantId ||
+        (participantId == 'ryan' && isRyan())
+      );
+    }
+
+    // Was this warden present in the memory? (Cross-warden read gate)
+    function wasPresent(memoryData, participantId) {
+      return isRyan() ||
+             isSelf(participantId) ||
+             (request.auth != null && request.auth.token.warden in memoryData.sharedWith);
+    }
+
+    // ── Kingdom-level wiki & logs (Ryan only writes, authenticated reads) ─────
+    match /kingdom/wiki/{articleId} {
+      allow read: if request.auth != null;
+      allow write: if isRyan() || isWarden();
+    }
+
+    match /kingdom/logs/{logId} {
+      allow read: if request.auth != null;
+      allow write: if isRyan() || isWarden();
+    }
+
+    match /kingdom/interactions/{sessionId} {
+      allow read: if isRyan() || (
+        isWarden() &&
+        request.auth.token.warden in resource.data.participants
+      );
+      allow write: if isRyan() || isWarden();
+    }
+
+    match /kingdom/projects/{projectId} {
+      allow read: if request.auth != null;
+      allow write: if isRyan() || isWarden();
+    }
+
+    // ── Participant subtrees ───────────────────────────────────────────────────
+    match /participants/{participantId} {
+
+      // Profile: readable by all authenticated, writable by self or Ryan
+      allow read: if request.auth != null;
+      allow write: if isRyan() || isSelf(participantId);
+
+      // Memories: strict cross-warden isolation
+      match /memories/{memoryId} {
+        // Ryan sees all. Self sees own. Others only if present in sharedWith[].
+        allow read: if isRyan() ||
+                       isSelf(participantId) ||
+                       (isWarden() && request.auth.token.warden in resource.data.sharedWith);
+
+        // Only the participant themselves or Ryan may write memories
+        allow write: if isRyan() || isSelf(participantId);
+      }
+
+      // Session logs: same rules as memories
+      match /sessions/{sessionId} {
+        allow read: if isRyan() ||
+                       isSelf(participantId) ||
+                       (isWarden() && request.auth.token.warden in resource.data.coParticipants);
+        allow write: if isRyan() || isSelf(participantId);
+      }
+
+      // Internal logs: self or Ryan only
+      match /logs/{logId} {
+        allow read: if isRyan() || isSelf(participantId);
+        allow write: if isRyan() || isSelf(participantId);
+      }
+    }
+
+    // ── File metadata ─────────────────────────────────────────────────────────
+    match /files/{fileId} {
+      allow read: if request.auth != null;
+      allow write: if isRyan() || isWarden();
+    }
+
+    // ── Deny everything else ──────────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
