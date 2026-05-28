@@ -207,6 +207,18 @@ exports.ingestDocument = functions
     const { collection, participantId, content, metadata = {} } = req.body;
     if (!content || !collection) return res.status(400).json({ error: 'content and collection required' });
 
+    // VAULT-HIGH-02: Admin SDK bypasses Firestore rules — enforce caller auth here.
+    // Memory writes require: caller is Ryan (emperor) OR the participant themselves.
+    if (collection === 'memories' && participantId) {
+      const isEmperor = decoded.email === 'ryan@omniatheatre.com' || decoded.emperor === true;
+      const isSelf = decoded.warden === participantId;
+      if (!isEmperor && !isSelf) {
+        return res.status(403).json({
+          error: `Not authorized to ingest memories for participant '${participantId}'`,
+        });
+      }
+    }
+
     try {
       const embedding = await getEmbedding(content);
       const doc = {
@@ -232,6 +244,7 @@ exports.ingestDocument = functions
       return res.status(500).json({ error: err.message });
     }
   });
+
 
 // ── POST /wikiCreate ──────────────────────────────────────────────────────────
 exports.wikiCreate = functions

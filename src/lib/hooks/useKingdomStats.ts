@@ -69,7 +69,7 @@ export function useKingdomStats(): HookResult<KingdomStats> {
     );
 
     const unsub3 = onSnapshot(
-      query(collection(db, 'kingdom', 'wiki', 'articles')),
+      query(collection(db, 'kingdom', 'wiki', 'items')),
       (snap) => trySetData({ totalWikiArticles: snap.size }),
       onError,
     );

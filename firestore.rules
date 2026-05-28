@@ -30,18 +30,21 @@ service cloud.firestore {
              (request.auth != null && request.auth.token.warden in memoryData.sharedWith);
     }
 
-    // ── Kingdom-level wiki & logs (Ryan only writes, authenticated reads) ─────
-    match /kingdom/wiki/{articleId} {
+    // ── Kingdom-level wiki & logs ─────────────────────────────────────────────
+    // Structure: /kingdom (collection) → {type} (document) → items (subcollection)
+    // Paths corrected from invalid 3-segment to valid 4-segment form (VAULT-CRIT-02).
+    // ADR-004: all kingdom subcollections use the /items naming convention.
+    match /kingdom/wiki/items/{articleId} {
       allow read: if request.auth != null;
       allow write: if isRyan() || isWarden();
     }
 
-    match /kingdom/logs/{logId} {
+    match /kingdom/logs/items/{logId} {
       allow read: if request.auth != null;
       allow write: if isRyan() || isWarden();
     }
 
-    match /kingdom/interactions/{sessionId} {
+    match /kingdom/interactions/items/{sessionId} {
       allow read: if isRyan() || (
         isWarden() &&
         request.auth.token.warden in resource.data.participants
@@ -49,7 +52,7 @@ service cloud.firestore {
       allow write: if isRyan() || isWarden();
     }
 
-    match /kingdom/projects/{projectId} {
+    match /kingdom/projects/items/{projectId} {
       allow read: if request.auth != null;
       allow write: if isRyan() || isWarden();
     }
