@@ -21,7 +21,7 @@ const NAV_ITEMS = [
   { id: 'dashboard', label: 'Kingdom Dashboard', icon: '▦' },
   { id: 'wiki',      label: 'Archival Wiki',      icon: '◫' },
   { id: 'memories',  label: 'Memory Browser',     icon: '◉' },
-  { id: 'files',     label: 'File Vault',          icon: '◨' },
+  { id: 'files',     label: 'File Vault',          icon: '⬡' },
   { id: 'analytics', label: 'Analytics',           icon: '◈' },
 ];
 

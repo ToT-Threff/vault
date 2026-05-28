@@ -3,10 +3,16 @@
 import { useState, useEffect } from 'react';
 import type { Page } from '@/app/page';
 
+// TODO: import { useProjects }    from '@/lib/hooks/useProjects';
+// TODO: import { useActivity }    from '@/lib/hooks/useActivity';
+// TODO: import { useVaultStats }  from '@/lib/hooks/useVaultStats';
+// TODO: import { useAuth }        from '@/lib/auth-context';
+
 interface DashboardProps {
   onNavigate: (page: Page, warden?: string) => void;
 }
 
+// TODO: replace PROJECTS with useProjects() hook — data from Firestore /projects collection
 const PROJECTS = [
   { name: 'Kingdom Vault',      status: 'building',  color: '#9B59B6', icon: '🏛️', desc: 'vault.ptolemy.live — this console' },
   { name: 'INSaiN-ngen',        status: 'active',    color: '#3498DB', icon: '🎬', desc: 'Script breakdown AI — ptolemy.studio' },
@@ -26,6 +32,7 @@ const STATUS_STYLES: Record<string, { label: string; class: string }> = {
   literary:  { label: 'Literary',  class: 'tag-purple' },
 };
 
+// TODO: replace ACTIVITY with useActivity() hook — data from Firestore /activity collection (real-time)
 const ACTIVITY = [
   { warden: 'Saroya',  color: '#E74C3C', text: 'Pushed <strong>SPECTRE_PROFILES_ENHANCED.md</strong> to all 6 repos', time: '2 min ago' },
   { warden: 'Saroya',  color: '#E74C3C', text: 'Created repos and wired <strong>12 submodules</strong> to Ptolemy parent', time: '18 min ago' },
@@ -66,20 +73,23 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Stats — TODO: replace static values with useVaultStats() hook */}
       <div className="stats-grid">
-        {[
-          { value: '12',     label: 'Wardens',        sub: '11 AI + Ryan' },
-          { value: '8',      label: 'Projects',        sub: '4 active' },
-          { value: '12',     label: 'Repositories',    sub: 'All wired' },
-          { value: '0',      label: 'Memories Indexed', sub: 'Vault building' },
-          { value: '45K',    label: 'Hectares',         sub: 'OmniLand scope' },
-          { value: '768d',   label: 'Vector Dims',      sub: 'nomic-embed' },
-        ].map((s) => (
+        {([
+          { value: '12',   label: 'Wardens',         sub: '11 AI + Ryan',    trend: null   },
+          { value: '8',    label: 'Projects',         sub: '4 active',        trend: null   },
+          { value: '12',   label: 'Repositories',     sub: 'All wired',       trend: 'up'   },
+          { value: '0',    label: 'Memories Indexed', sub: 'Vault building',   trend: null   },
+          { value: '45K',  label: 'Hectares',         sub: 'OmniLand scope',  trend: null   },
+          { value: '768d', label: 'Vector Dims',      sub: 'nomic-embed',     trend: null   },
+        ] as const).map((s) => (
           <div key={s.label} className="stat-card">
             <div className="stat-value">{s.value}</div>
             <div className="stat-label">{s.label}</div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>{s.sub}</div>
+            {s.trend === 'up' && (
+              <div className="stat-change up" style={{ marginTop: 8 }}>↑ Growing</div>
+            )}
           </div>
         ))}
       </div>

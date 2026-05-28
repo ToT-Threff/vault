@@ -2,6 +2,21 @@
 
 import { useState } from 'react';
 
+// TODO: import { useMemories }  from '@/lib/hooks/useMemories';
+// TODO: import { useWardens }   from '@/lib/hooks/useWardens';
+// TODO: import { useAuth }      from '@/lib/auth-context';
+
+// ── Types (move to src/lib/types.ts once Melody ships) ──────────────────────
+interface SearchResult {
+  id:        string;
+  title:     string;
+  content:   string;
+  tags:      string[];
+  timestamp: string;
+  score:     number;
+}
+
+// TODO: replace WARDENS with useWardens() hook — data from Firestore /wardens collection
 const WARDENS = [
   { id: 'ryan',    name: 'Ryan',    title: 'The Emperor',           emoji: '👑', color: '#FFD700' },
   { id: 'ptolemy', name: 'Ptolemy', title: 'Autonomic Shield',      emoji: '🌌', color: '#9B59B6' },
@@ -24,8 +39,9 @@ interface MemoriesProps {
 
 export default function Memories({ selectedWarden, onSelectWarden }: MemoriesProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [searching, setSearching] = useState(false);
-  const [results, setResults] = useState<any[]>([]);
+  const [searching,   setSearching]   = useState(false);
+  const [results,     setResults]     = useState<SearchResult[]>([]);
+  // TODO: const { results, search, isSearching } = useMemories(selectedWarden);
 
   const active = WARDENS.find((w) => w.id === selectedWarden);
 
@@ -181,7 +197,9 @@ export default function Memories({ selectedWarden, onSelectWarden }: MemoriesPro
               border: '1px dashed var(--border)', borderRadius: 10,
             }}>
               <div style={{ fontSize: '2rem', marginBottom: 8 }}>◉</div>
-              <div>No memories indexed yet.</div>
+              <div style={{ fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                This warden has not yet spoken into the record.
+              </div>
               <div style={{ marginTop: 4 }}>
                 Run{' '}
                 <code style={{
@@ -204,7 +222,12 @@ export default function Memories({ selectedWarden, onSelectWarden }: MemoriesPro
           color: 'var(--text-muted)', fontSize: '0.9375rem',
         }}>
           <div style={{ fontSize: '3rem', marginBottom: 12 }}>◉</div>
-          <div>Select a warden to browse their memories.</div>
+          <div style={{ fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>
+            Select a warden to browse their memories.
+          </div>
+          <div style={{ fontSize: '0.875rem' }}>
+            Each namespace is identity-isolated. Ryan sees all.
+          </div>
         </div>
       )}
     </div>

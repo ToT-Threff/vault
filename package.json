@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "ingest": "ts-node scripts/ingest-memory.ts",
+    "seed": "tsx scripts/seed-firestore.ts"
   },
   "dependencies": {
     "firebase": "^12.13.0",
@@ -18,6 +20,8 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.19.3",
     "typescript": "^5"
   }
 }

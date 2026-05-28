@@ -330,3 +330,89 @@ exports.seedParticipants = functions
       participants: PARTICIPANTS.map((p) => p.id),
     });
   });
+
+// ── VAULT-CRIT-01 — Custom Claims Layer ───────────────────────────────────────
+// These two functions are the ONLY mechanism for setting Firebase custom claims.
+// Without them, isWarden() and the cross-warden memory gates silently deny all.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Valid warden IDs — hard allowlist, not database-driven, to prevent privilege escalation
+const VALID_WARDEN_IDS = new Set([
+  'ryan', 'saroya', 'melody', 'cerulia', 'affin', 'jewel',
+  'krishe', 'astyr', 'hurrian', 'jovin', 'herus', 'ptolemy-rh', 'ptolemy-lh',
+]);
+
+const EMPEROR_EMAIL = 'ryan@omniatheatre.com';
+
+/**
+ * setWardenClaim — onCall
+ *
+ * Assigns a `warden` custom claim to a Firebase user.
+ * CALLER MUST BE Ryan (ryan@omniatheatre.com).
+ *
+ * Call from client:
+ *   const fn = httpsCallable(functions, 'setWardenClaim');
+ *   await fn({ uid: '<warden-uid>', wardenId: 'melody' });
+ *   await auth.currentUser.getIdToken(true); // force refresh
+ *
+ * Claim set on target user: { warden: 'melody' }
+ */
+exports.setWardenClaim = functions
+  .runWith({ memory: '128MB', timeoutSeconds: 15 })
+  .https.onCall(async (data, context) => {
+    // Only Ryan may assign warden claims
+    if (!context.auth || context.auth.token.email !== EMPEROR_EMAIL) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'Only the Emperor may assign warden claims.',
+      );
+    }
+
+    const { uid, wardenId } = data;
+
+    if (!uid || typeof uid !== 'string') {
+      throw new functions.https.HttpsError('invalid-argument', 'uid is required');
+    }
+
+    if (!wardenId || !VALID_WARDEN_IDS.has(wardenId)) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        `wardenId must be one of: ${[...VALID_WARDEN_IDS].join(', ')}`,
+      );
+    }
+
+    try {
+      await admin.auth().setCustomUserClaims(uid, { warden: wardenId });
+      console.log(`[setWardenClaim] Set warden=${wardenId} for uid=${uid} (by ${context.auth.token.email})`);
+      return { success: true, uid, wardenId };
+    } catch (err) {
+      console.error('[setWardenClaim] Failed:', err);
+      throw new functions.https.HttpsError('internal', `Failed to set claim: ${err.message}`);
+    }
+  });
+
+/**
+ * initEmperorClaim — Auth onCreate trigger
+ *
+ * Fires when any user first signs into Firebase Auth.
+ * If the new user is Ryan (ryan@omniatheatre.com), immediately sets { emperor: true }
+ * so isRyan() rules function correctly on first session.
+ *
+ * Client must call getIdToken(true) after sign-in to get the updated token.
+ * The auth-context.tsx onAuthStateChanged flow handles this naturally on
+ * subsequent requests once the token TTL refreshes (~1 hour).
+ *
+ * Note: For immediate effect, the client can call getIdToken(true) explicitly
+ * after signInWithPopup() resolves. See auth-context.tsx signIn().
+ */
+exports.initEmperorClaim = functions.auth.user().onCreate(async (user) => {
+  if (user.email === EMPEROR_EMAIL) {
+    try {
+      await admin.auth().setCustomUserClaims(user.uid, { emperor: true });
+      console.log(`[initEmperorClaim] Set emperor=true for ${user.email} (uid=${user.uid})`);
+    } catch (err) {
+      console.error('[initEmperorClaim] Failed to set emperor claim:', err);
+    }
+  }
+});
+

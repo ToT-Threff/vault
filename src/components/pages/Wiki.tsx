@@ -2,13 +2,17 @@
 
 import { useState } from 'react';
 
+// TODO: import { useWikiArticles } from '@/lib/hooks/useWikiArticles';
+// TODO: import { useAuth }         from '@/lib/auth-context';
+
 export default function Wiki({ searchQuery }: { searchQuery: string }) {
-  const [view, setView] = useState<'browse' | 'new'>('browse');
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
-  const [tags, setTags] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [view,    setView]   = useState<'browse' | 'new'>('browse');
+  const [title,   setTitle]  = useState('');
+  const [body,    setBody]   = useState('');
+  const [tags,    setTags]   = useState('');
+  const [saving,  setSaving] = useState(false);
+  const [saved,   setSaved]  = useState(false);
+  // TODO: const { articles, isLoading } = useWikiArticles({ query: searchQuery });
 
   const handleSave = async () => {
     if (!title.trim() || !body.trim()) return;
@@ -137,23 +141,15 @@ export default function Wiki({ searchQuery }: { searchQuery: string }) {
             />
           </div>
 
-          {/* Empty state */}
-          <div style={{
-            textAlign: 'center', padding: '64px 20px',
-            border: '1px dashed var(--border)', borderRadius: 14,
-            color: 'var(--text-muted)',
-          }}>
+          <div style={{ textAlign: 'center', padding: '64px 20px', border: '1px dashed var(--border)', borderRadius: 14, color: 'var(--text-muted)' }}>
             <div style={{ fontSize: '3.5rem', marginBottom: 12, opacity: 0.6 }}>📚</div>
             <div style={{ fontSize: '1.0625rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
-              The wiki is empty — for now.
+              Nothing has been written here yet. The page waits.
             </div>
             <div style={{ fontSize: '0.875rem', marginBottom: 20 }}>
               Bootstrap ingestion will populate it with all existing kingdom markdown files.
             </div>
-            <div style={{
-              background: 'var(--surface)', borderRadius: 8,
-              padding: '10px 16px', display: 'inline-block', textAlign: 'left',
-            }}>
+            <div style={{ background: 'var(--surface)', borderRadius: 8, padding: '10px 16px', display: 'inline-block', textAlign: 'left' }}>
               <code style={{ fontSize: '0.8125rem', color: 'var(--gold)', fontFamily: "'JetBrains Mono', monospace" }}>
                 node scripts/ingest-worker.js --bootstrap
               </code>

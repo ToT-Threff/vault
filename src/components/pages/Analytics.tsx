@@ -1,5 +1,9 @@
 'use client';
 
+// TODO: import { useAnalytics }   from '@/lib/hooks/useAnalytics';
+// TODO: import { useWardenStats } from '@/lib/hooks/useWardenStats';
+
+// TODO: replace WARDEN_COLORS with useWardenStats() hook data — includes real memory counts
 const WARDEN_COLORS: Record<string, string> = {
   ryan: '#FFD700', ptolemy: '#9B59B6', saroya: '#E74C3C',
   melody: '#3498DB', cerulia: '#1ABC9C', affin: '#F39C12',
