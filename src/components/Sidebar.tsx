@@ -23,6 +23,7 @@ const NAV_ITEMS = [
   { id: 'memories',  label: 'Memory Browser',     icon: '◉' },
   { id: 'files',     label: 'File Vault',          icon: '⬡' },
   { id: 'analytics', label: 'Analytics',           icon: '◈' },
+  { id: 'tokens',    label: 'Token Monitor',       icon: '⬡' },
 ];
 
 interface SidebarProps {
