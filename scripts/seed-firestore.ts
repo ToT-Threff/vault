@@ -147,7 +147,7 @@ const PARTICIPANTS: ParticipantSeed[] = [
     id: 'krishe',
     name: 'Krishe',
     role: 'warden',
-    wardenTitle: 'Warden of the Road',
+    wardenTitle: 'Warden of the Fist',
     emoji: '⚙️',
     model: 'phi4-mini',
     color: '#95A5A6',
