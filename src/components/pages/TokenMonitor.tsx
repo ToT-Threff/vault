@@ -6,8 +6,8 @@
  * Shows spend by source, workspace, model, and per-run log.
  */
 
-import { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, limit, getDocs, Timestamp } from 'firebase/firestore';
+import { useState, useEffect, useRef } from 'react';
+import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -47,9 +47,9 @@ interface AuditReport {
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-
-const MONTHLY_BUDGET = 100.00;
-const DAILY_BUDGET   = 8.00;
+// Match token_logger.py: KINGDOM_DAILY_BUDGET_USD=50, KINGDOM_MONTHLY_BUDGET_USD=500
+const MONTHLY_BUDGET = 500.00;
+const DAILY_BUDGET   = 50.00;
 
 const SOURCE_COLORS: Record<string, string> = {
   api:          '#E74C3C',
@@ -58,7 +58,7 @@ const SOURCE_COLORS: Record<string, string> = {
 };
 
 const SOURCE_LABELS: Record<string, string> = {
-  api:          'External API (Fable 5)',
+  api:          'External API (Opus 4.8)',
   local:        'Local Ollama',
   antigravity:  'Antigravity AGY',
 };
@@ -153,42 +153,51 @@ export default function TokenMonitor() {
   const [records, setRecords]       = useState<UsageRecord[]>([]);
   const [audits, setAudits]         = useState<AuditReport[]>([]);
   const [loading, setLoading]       = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [activeTab, setActiveTab]   = useState<'overview' | 'runs' | 'audits'>('overview');
+  const unsubRefs = useRef<Array<() => void>>([]);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    // ── Real-time listener: token_usage ──────────────────────────────────────
+    // onSnapshot fires immediately with current data, then on every write.
+    // Zero cost per update — a single persistent WebSocket, not polling.
+    const usageQ = query(
+      collection(db, 'token_usage'),
+      orderBy('timestamp', 'desc'),
+      limit(200),
+    );
 
-  async function loadData() {
-    setLoading(true);
-    try {
-      // Load last 30 days of token_usage
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-      const usageQ = query(
-        collection(db, 'token_usage'),
-        orderBy('timestamp', 'desc'),
-        limit(200),
-      );
-      const usageSnap = await getDocs(usageQ);
-      const recs = usageSnap.docs.map(d => ({ id: d.id, ...d.data() } as UsageRecord));
+    const unsubUsage = onSnapshot(usageQ, (snap) => {
+      const recs = snap.docs.map(d => ({ id: d.id, ...d.data() } as UsageRecord));
       setRecords(recs);
-
-      // Load last 14 audit reports
-      const auditsQ = query(
-        collection(db, 'audits'),
-        orderBy('audit_date', 'desc'),
-        limit(14),
-      );
-      const auditsSnap = await getDocs(auditsQ);
-      setAudits(auditsSnap.docs.map(d => d.data() as AuditReport));
-    } catch (e) {
-      console.error('TokenMonitor load error:', e);
-    } finally {
+      setLastUpdated(new Date());
       setLoading(false);
-    }
-  }
+    }, (err) => {
+      console.error('TokenMonitor usage stream error:', err);
+      setLoading(false);
+    });
+
+    // ── Real-time listener: audits ────────────────────────────────────────────
+    const auditsQ = query(
+      collection(db, 'audits'),
+      orderBy('audit_date', 'desc'),
+      limit(14),
+    );
+
+    const unsubAudits = onSnapshot(auditsQ, (snap) => {
+      setAudits(snap.docs.map(d => d.data() as AuditReport));
+      setLastUpdated(new Date());
+    }, (err) => {
+      console.error('TokenMonitor audits stream error:', err);
+    });
+
+    // Store unsubscribe refs for cleanup
+    unsubRefs.current = [unsubUsage, unsubAudits];
+
+    return () => {
+      unsubRefs.current.forEach(u => u());
+    };
+  }, []);
 
   // ── Derived Stats ───────────────────────────────────────────────────────────
 
@@ -252,14 +261,28 @@ export default function TokenMonitor() {
             <h1 className="page-title">Token Monitor</h1>
             <p className="page-subtitle">AI usage tracking across all Kingdom workspaces.</p>
           </div>
-          <button
-            className="btn btn-ghost"
-            style={{ fontSize: '0.8125rem', padding: '5px 14px', marginTop: 4 }}
-            onClick={loadData}
-            disabled={loading}
-          >
-            {loading ? <Spinner /> : '↻ Refresh'}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+            {/* Live indicator */}
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              fontSize: '0.6875rem', color: 'var(--text-muted)',
+              fontFamily: "'JetBrains Mono', monospace",
+            }}>
+              <span style={{
+                width: 7, height: 7, borderRadius: '50%',
+                background: '#1ABC9C',
+                boxShadow: '0 0 6px #1ABC9C',
+                animation: 'pulse 2s ease-in-out infinite',
+                display: 'inline-block',
+              }} />
+              LIVE
+            </span>
+            {lastUpdated && (
+              <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', fontFamily: "'JetBrains Mono', monospace" }}>
+                {lastUpdated.toLocaleTimeString()}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 

@@ -9,7 +9,7 @@ import Memories from '@/components/pages/Memories';
 import Files from '@/components/pages/Files';
 import TokenMonitor from '@/components/pages/TokenMonitor';
 
-export type Page = 'dashboard' | 'wiki' | 'memories' | 'files' | 'analytics' | 'tokens';
+export type Page = 'dashboard' | 'wiki' | 'memories' | 'files' | 'tokens';
 
 export default function Home() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
@@ -34,7 +34,6 @@ export default function Home() {
         {currentPage === 'wiki'       && <Wiki searchQuery={searchQuery} />}
         {currentPage === 'memories'   && <Memories selectedWarden={selectedWarden} onSelectWarden={setSelectedWarden} />}
         {currentPage === 'files'      && <Files />}
-        {currentPage === 'analytics'  && <Analytics />}
         {currentPage === 'tokens'     && <TokenMonitor />}
       </main>
     </div>

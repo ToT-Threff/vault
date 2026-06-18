@@ -1,28 +1,24 @@
 'use client';
 
 import type { Page } from '@/app/page';
-
-// TODO: import { useAuth } from '@/lib/auth-context' — wire when Melody ships auth
-// TODO: import { useVaultStats } from '@/lib/hooks/useVaultStats' — for live search hint
+import { useAuth } from '@/lib/auth-context';
 
 const PAGE_LABELS: Record<Page, string> = {
-  dashboard:  'Kingdom Dashboard',
-  wiki:       'Archival Wiki',
-  memories:   'Memory Browser',
-  files:      'File Vault',
-  analytics:  'Analytics',
+  dashboard:  'Dashboard',
+  wiki:       'Wiki',
+  memories:   'Memories',
+  files:      'Files',
+  tokens:     'Token Monitor',
 };
 
 interface HeaderProps {
   currentPage: Page;
   searchQuery: string;
-  onSearch: (q: string) => void;
+  onSearch:    (q: string) => void;
 }
 
 export default function Header({ currentPage, searchQuery, onSearch }: HeaderProps) {
-  // TODO: const { user, signOut } = useAuth();
-  // Placeholder until Melody's auth context is live:
-  const userEmail = 'ryan@omniatheatre.com'; // TODO: replace with user?.email
+  const { user, signOut } = useAuth();
 
   return (
     <header className="vault-header">
@@ -53,19 +49,18 @@ export default function Header({ currentPage, searchQuery, onSearch }: HeaderPro
 
       {/* Actions */}
       <div className="header-actions">
-        {/* TODO: wire to useAuth() — replace static pill with real user + sign-out */}
         <div
           className="header-user"
           role="button"
           tabIndex={0}
-          title="Signed in — click to sign out"
-          // onClick={signOut}  ← uncomment when Melody ships auth
+          title="Click to sign out"
+          onClick={signOut}
+          onKeyDown={(e) => e.key === 'Enter' && signOut()}
         >
           <span className="header-user-dot" />
-          {userEmail}
+          {user?.displayName || user?.email || '—'}
         </div>
       </div>
     </header>
   );
 }
-
