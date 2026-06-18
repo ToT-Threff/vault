@@ -96,6 +96,24 @@ service cloud.firestore {
       allow write: if isRyan() || isWarden();
     }
 
+    // ── Token monitoring (kingdom budget tracking) ────────────────────────────
+    // Written by: nightly audit script (Admin SDK — bypasses rules),
+    //             any warden via log_token_usage MCP tool,
+    //             token_logger.py via ADC.
+    // Read by:    Vault Token Monitor dashboard, any authenticated warden.
+    match /token_usage/{docId} {
+      allow read: if request.auth != null;
+      allow write: if isRyan() || isWarden();
+    }
+
+    // ── Nightly audit reports ─────────────────────────────────────────────────
+    // Written by: nightly_ptolemy_audit.py (Admin SDK — bypasses rules).
+    // Read by:    Vault dashboard, wardens querying get_audit_report MCP tool.
+    match /audits/{dateId} {
+      allow read: if request.auth != null;
+      allow write: if isRyan() || isWarden();
+    }
+
     // ── Deny everything else ──────────────────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;
