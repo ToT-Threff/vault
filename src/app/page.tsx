@@ -7,9 +7,11 @@ import Dashboard from '@/components/pages/Dashboard';
 import Wiki from '@/components/pages/Wiki';
 import Memories from '@/components/pages/Memories';
 import Files from '@/components/pages/Files';
+import Analytics from '@/components/pages/Analytics';
 import TokenMonitor from '@/components/pages/TokenMonitor';
+import Benchmark from '@/components/pages/Benchmark';
 
-export type Page = 'dashboard' | 'wiki' | 'memories' | 'files' | 'tokens';
+export type Page = 'dashboard' | 'wiki' | 'memories' | 'files' | 'analytics' | 'tokens' | 'benchmark';
 
 export default function Home() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
@@ -34,7 +36,9 @@ export default function Home() {
         {currentPage === 'wiki'       && <Wiki searchQuery={searchQuery} />}
         {currentPage === 'memories'   && <Memories selectedWarden={selectedWarden} onSelectWarden={setSelectedWarden} />}
         {currentPage === 'files'      && <Files />}
+        {currentPage === 'analytics'  && <Analytics />}
         {currentPage === 'tokens'     && <TokenMonitor />}
+        {currentPage === 'benchmark'  && <Benchmark />}
       </main>
     </div>
   );

@@ -8,7 +8,9 @@ const PAGE_LABELS: Record<Page, string> = {
   wiki:       'Wiki',
   memories:   'Memories',
   files:      'Files',
+  analytics:  'Analytics',
   tokens:     'Token Monitor',
+  benchmark:  'Benchmarks',
 };
 
 interface HeaderProps {

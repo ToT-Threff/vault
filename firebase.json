@@ -15,15 +15,18 @@
       "ignore": ["node_modules", ".git", "firebase-debug.log", "firebase-debug.*.log", "*.local", "pnpm-lock.yaml"]
     }
   ],
-  "storage": {
-    "rules": "storage.rules"
-  },
+  "storage": [
+    {
+      "rules": "storage.rules",
+      "bucket": "omnia-kingdom-vault-storage"
+    }
+  ],
   "emulators": {
     "auth": { "port": 9099 },
     "functions": { "port": 5001 },
     "firestore": { "port": 8080 },
     "storage": { "port": 9199 },
-    "ui": { "enabled": true, "port": 4000 },
+    "ui": { "enabled": true, "port": 4001 },
     "singleProjectMode": true
   }
 }

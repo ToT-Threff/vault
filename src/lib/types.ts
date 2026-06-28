@@ -9,6 +9,7 @@ import { Timestamp } from 'firebase/firestore';
 
 export type WardenId =
   | 'ryan'
+  | 'ptolemy'
   | 'saroya'
   | 'melody'
   | 'cerulia'
@@ -31,15 +32,22 @@ export interface Participant {
   id: WardenId;
   name: string;
   role: WardenRole;
-  wardenTitle: string;
-  emoji: string;
-  /** Ollama model identifier used by this warden */
-  model: string;
-  /** ISO 8601 timestamp string or Firestore Timestamp */
-  lastActive: Timestamp | null;
-  memoryCount: number;
+  /** Warden title as written by seedParticipants CF (e.g. 'Warden of the Word') */
+  title: string;
+  /** Whether this participant is a human (Ryan) or AI warden */
+  isHuman: boolean;
   /** CSS color variable value e.g. '#3498DB' */
   color: string;
+  /** Emoji identifier — set by UI or seed update, not in initial CF seed */
+  emoji?: string;
+  /** Ollama model identifier — set when warden loop infrastructure is active */
+  model?: string;
+  /** Last activity timestamp — aspirational, no auto-update mechanism yet */
+  lastActive?: Timestamp | null;
+  /** Memory count — aspirational, would need Firestore trigger to maintain */
+  memoryCount?: number;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
 }
 
 // ── Memories ───────────────────────────────────────────────────────────────────
@@ -103,6 +111,9 @@ export interface WikiArticle {
 
 export type ProjectStatus = 'active' | 'backlog' | 'paused' | 'complete';
 
+/** Status values written by ingest-work-logs.ts from WORK_LOG.md files */
+export type WorkLogStatus = 'stable' | 'in-progress' | 'blocked' | 'inactive';
+
 export interface Project {
   id: string;
   name: string;
@@ -112,11 +123,39 @@ export interface Project {
   wardens: WardenId[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
+
+  // ── Workspace fields (set by New Project modal) ───────────────────────────────
+  /** 'new' → CF creates GitHub repo; 'existing' → attach to existing workspace */
+  workspace?: 'new' | 'existing';
+  /** Firestore ID of the attached workspace (when workspace === 'existing') */
+  workspaceId?: string;
+  /** Lifecycle state of the workspace provisioning */
+  workspaceStatus?: 'pending' | 'ready' | 'failed';
+  /** GitHub repo URL (populated by CF after creation) */
+  githubUrl?: string;
+  /** Mac Mini local path (populated by CF after creation) */
+  workspacePath?: string;
+
+  // ── Work Log fields (auto-ingested by ingest-work-logs.ts cron) ──────────────
+  /** Derived from WORK_LOG.md; absent if no log exists for this project */
+  workLogStatus?: WorkLogStatus;
+  statusEmoji?: string;    // e.g. '🟡'
+  statusLabel?: string;    // e.g. 'In Progress'
+  activeTask?: string;     // e.g. 'TASK-017 — Kingdom Vault build'
+  warden?: string;         // e.g. 'Saroya'
+  lastOutput?: string;     // truncated summary of last session output
+  nextAction?: string;     // next planned action
+  blockers?: string;       // 'none' or description
+  logDate?: string;        // e.g. '2026-05-28'
+  lastUpdated?: Timestamp; // server timestamp of last ingest
 }
 
 // ── Files ──────────────────────────────────────────────────────────────────────
 
 export type FileType = 'image' | 'video' | 'audio' | 'document' | 'archive' | 'other';
+
+/** Tracks whether the file has been ingested into the vector index */
+export type EmbeddingStatus = 'pending' | 'indexing' | 'indexed' | 'failed';
 
 export interface KingdomFile {
   id: string;
@@ -133,6 +172,12 @@ export interface KingdomFile {
   tags: string[];
   /** Optional project association */
   projectId?: string;
+  /** Vector index ingestion status */
+  embeddingStatus?: EmbeddingStatus;
+  /** Timestamp when the file was indexed */
+  indexedAt?: Timestamp;
+  /** Error message if ingestion failed */
+  embeddingError?: string;
 }
 
 // ── Kingdom Stats (aggregated for Dashboard) ───────────────────────────────────

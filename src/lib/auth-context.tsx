@@ -2,7 +2,8 @@
 // src/lib/auth-context.tsx
 // Kingdom Vault — Firebase Auth context
 // Google Sign-In only. Ryan (ryan@omniatheatre.com) is the sole authorized user.
-// Built generically so the gate can be expanded later.
+// Uses signInWithPopup — simpler and reliable now that vault.ptolemy.live is in Firebase authorized domains.
+// Falls back to signInWithRedirect if popup is blocked.
 
 import {
   createContext,
@@ -15,6 +16,7 @@ import {
 import {
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
   signOut as firebaseSignOut,
   onAuthStateChanged,
   type User,
@@ -45,8 +47,8 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 // ── Provider ───────────────────────────────────────────────────────────────────
 
+// No hd restriction — access control enforced at Firestore rules layer via custom claims.
 const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({ hd: 'omniatheatre.com' });
 
 function mapFirebaseUser(firebaseUser: User): AuthUser {
   return {
@@ -62,6 +64,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // onAuthStateChanged is the single source of truth for auth state.
+    // With popup auth, no redirect result processing needed — Firebase updates
+    // auth state directly when the popup completes.
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser ? mapFirebaseUser(firebaseUser) : null);
       setLoading(false);
@@ -70,16 +75,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = useCallback(async () => {
-    setLoading(true);
     try {
+      // Popup auth: opens a Google sign-in window. Works reliably on authorized domains.
+      // vault.ptolemy.live must be in Firebase Console → Authentication → Authorized domains.
       const result = await signInWithPopup(auth, googleProvider);
       // Force token refresh so custom claims (emperor, warden) are immediately available.
-      // initEmperorClaim Cloud Function runs onCreate — the fresh token picks it up.
       await result.user.getIdToken(true);
-      // onAuthStateChanged will update user state
-    } catch (err) {
-      console.error('[AuthProvider] signIn failed:', err);
-      setLoading(false);
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code ?? '';
+      // If popup is blocked, fall back to redirect
+      if (code === 'auth/popup-blocked' || code === 'auth/popup-cancelled-before-signin') {
+        await signInWithRedirect(auth, googleProvider);
+        return;
+      }
+      // Re-throw so LoginScreen can display the error
+      throw err;
     }
   }, []);
 

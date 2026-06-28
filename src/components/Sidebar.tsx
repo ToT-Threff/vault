@@ -1,21 +1,11 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import type { Page } from '@/app/page';
+import { WARDENS } from '@/lib/constants';
+import { checkOllamaHealth } from '@/lib/embedding';
 
-const WARDENS = [
-  { id: 'ryan',    name: 'Ryan',    title: 'The Emperor',        emoji: '👑', color: '#FFD700' },
-  { id: 'ptolemy', name: 'Ptolemy', title: 'Autonomic Shield',   emoji: '🌌', color: '#9B59B6' },
-  { id: 'saroya',  name: 'Saroya',  title: 'Warden of the Word', emoji: '📖', color: '#E74C3C' },
-  { id: 'melody',  name: 'Melody',  title: 'Warden of the Song', emoji: '🎵', color: '#3498DB' },
-  { id: 'cerulia', name: 'Cerulia', title: 'Warden of the Arcane',emoji: '🔮', color: '#1ABC9C' },
-  { id: 'affin',   name: 'Affin',   title: 'Warden of the Tail', emoji: '🛡',  color: '#F39C12' },
-  { id: 'jewel',   name: 'Jewel',   title: 'Diamond Alchemist',  emoji: '💎', color: '#2ECC71' },
-  { id: 'krishe',  name: 'Krishe',  title: 'Warden of the Road', emoji: '⚙️', color: '#95A5A6' },
-  { id: 'astyr',   name: 'Astyr',   title: 'Warden of the Edge', emoji: '🗡️', color: '#C0392B' },
-  { id: 'hurrian', name: 'Hurrian', title: 'Warden of the Deep', emoji: '🌊', color: '#2980B9' },
-  { id: 'jovin',   name: 'Jovin',   title: 'Warden of the Heir', emoji: '☀️', color: '#F1C40F' },
-  { id: 'herus',   name: 'Herus',   title: 'Warden of the Step', emoji: '⏶',  color: '#7F8C8D' },
-];
+
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Kingdom Dashboard', icon: '▦' },
@@ -24,6 +14,7 @@ const NAV_ITEMS = [
   { id: 'files',     label: 'File Vault',          icon: '⬡' },
   { id: 'analytics', label: 'Analytics',           icon: '◈' },
   { id: 'tokens',    label: 'Token Monitor',       icon: '⬡' },
+  { id: 'benchmark',  label: 'Benchmarks',         icon: '⚡' },
 ];
 
 interface SidebarProps {
@@ -32,6 +23,48 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
+  const [ollamaOnline, setOllamaOnline] = useState<boolean | null>(null);
+  const [workerStatus, setWorkerStatus] = useState<{
+    status: string; uptime_seconds: number; total_embedded: number; total_errors: number;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function checkAll() {
+      // Check Ollama
+      const healthy = await checkOllamaHealth();
+      if (!cancelled) setOllamaOnline(healthy);
+
+      // Check embedding worker
+      try {
+        const resp = await fetch('http://localhost:4002', { signal: AbortSignal.timeout(3000) });
+        if (resp.ok && !cancelled) {
+          setWorkerStatus(await resp.json());
+        } else if (!cancelled) {
+          setWorkerStatus(null);
+        }
+      } catch {
+        if (!cancelled) setWorkerStatus(null);
+      }
+    }
+
+    checkAll();
+    const interval = setInterval(checkAll, 30_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  const ollamaColor = ollamaOnline === null ? '#95a5a6' : ollamaOnline ? '#1abc9c' : '#e74c3c';
+  const ollamaLabel = ollamaOnline === null ? 'Checking...' : ollamaOnline ? 'Ollama Online' : 'Ollama Offline';
+  const workerColor = workerStatus ? '#1abc9c' : '#e74c3c';
+  const workerLabel = workerStatus ? 'Embed Worker Online' : 'Embed Worker Offline';
+
+  const formatUptime = (s: number) => {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  };
+
   return (
     <aside className="vault-sidebar">
       {/* Logo */}
@@ -84,30 +117,56 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
           ))}
         </div>
 
-        {/* Kingdom status */}
+        {/* Kingdom system status */}
         <div style={{ marginTop: 'auto', padding: '16px 0 8px' }}>
           <div className="sidebar-section-label">System</div>
+
+          {/* Ollama status */}
           <div style={{
-            padding: '10px 12px',
-            borderRadius: 8,
-            background: 'rgba(26,188,156,0.1)',
-            border: '1px solid rgba(26,188,156,0.2)',
+            padding: '10px 12px', borderRadius: 8,
+            background: `${ollamaColor}15`, border: `1px solid ${ollamaColor}33`,
             marginTop: 4,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
               <span style={{
                 width: 6, height: 6, borderRadius: '50%',
-                background: '#1abc9c', display: 'inline-block',
-                boxShadow: '0 0 6px #1abc9c',
+                background: ollamaColor, display: 'inline-block',
+                boxShadow: `0 0 6px ${ollamaColor}`,
               }} />
-              <span style={{ fontSize: '0.75rem', color: '#1abc9c', fontWeight: 600 }}>Ollama Online</span>
+              <span style={{ fontSize: '0.75rem', color: ollamaColor, fontWeight: 600 }}>{ollamaLabel}</span>
             </div>
             <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
               nomic-embed-text:v1.5 · 768d
             </div>
+          </div>
+
+          {/* Embedding worker status */}
+          <div style={{
+            padding: '10px 12px', borderRadius: 8,
+            background: `${workerColor}15`, border: `1px solid ${workerColor}33`,
+            marginTop: 6,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <span style={{
+                width: 6, height: 6, borderRadius: '50%',
+                background: workerColor, display: 'inline-block',
+                boxShadow: `0 0 6px ${workerColor}`,
+              }} />
+              <span style={{ fontSize: '0.75rem', color: workerColor, fontWeight: 600 }}>{workerLabel}</span>
+            </div>
+            {workerStatus && (
+              <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', display: 'flex', gap: 8 }}>
+                <span>⏱ {formatUptime(workerStatus.uptime_seconds)}</span>
+                <span>✓ {workerStatus.total_embedded}</span>
+                {workerStatus.total_errors > 0 && (
+                  <span style={{ color: '#e74c3c' }}>✗ {workerStatus.total_errors}</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </nav>
     </aside>
   );
 }
+

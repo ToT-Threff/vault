@@ -4,23 +4,42 @@ import { useState, useEffect, useCallback } from 'react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Page } from '@/app/page';
+import { WARDEN_COLORS, ALL_WARDEN_IDS } from '@/lib/constants';
 import { useProjects }     from '@/lib/hooks';
 import { useKingdomStats } from '@/lib/hooks';
+import { useActivity }     from '@/lib/hooks';
 import { useWorkspaces }   from '@/lib/hooks';
+import { useTokenUsage }   from '@/lib/hooks';
 import type { Project, KingdomStats, ProjectStatus } from '@/lib/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Static data that doesn't come from Firestore
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Activity feed — TODO: wire useActivity() hook when Melody builds it
-const ACTIVITY = [
-  { warden: 'Saroya',  color: '#E74C3C', text: 'Pushed <strong>SPECTRE_PROFILES_ENHANCED.md</strong> to all 6 repos', time: '2 min ago' },
-  { warden: 'Saroya',  color: '#E74C3C', text: 'Created repos and wired <strong>12 submodules</strong> to Ptolemy parent', time: '18 min ago' },
-  { warden: 'Ptolemy', color: '#9B59B6', text: 'Deployed <strong>omnilinks</strong> to Omnia Theatre repo', time: '2 hrs ago' },
-  { warden: 'Melody',  color: '#3498DB', text: 'Wired auth + Firestore data layer into <strong>Kingdom Vault</strong>', time: '4 hrs ago' },
-  { warden: 'Cerulia', color: '#1ABC9C', text: 'Built <strong>OmniLand master plan page</strong> — S15 complete', time: '1 day ago' },
-];
+// ── Activity feed helpers ──────────────────────────────────────────────────────
+
+const ACTION_VERB: Record<string, string> = {
+  created:  'Created',
+  updated:  'Updated',
+  uploaded: 'Uploaded',
+};
+
+const TYPE_ICON: Record<string, string> = {
+  wiki:    '📄',
+  file:    '📎',
+  project: '🏛️',
+};
+
+/** Convert a Firestore Timestamp to a human-readable relative string */
+function timeAgo(ts: { seconds: number } | null | undefined): string {
+  if (!ts) return '';
+  const now   = Date.now() / 1000;
+  const delta = Math.max(0, now - ts.seconds);
+  if (delta < 60)   return 'just now';
+  if (delta < 3600) return `${Math.floor(delta / 60)} min ago`;
+  if (delta < 86400) return `${Math.floor(delta / 3600)} hrs ago`;
+  return `${Math.floor(delta / 86400)} days ago`;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Project status → tag class mapping
@@ -34,15 +53,7 @@ const STATUS_STYLES: Record<Project['status'], { label: string; tagClass: string
   complete: { label: 'Complete',  tagClass: 'tag-purple' },
 };
 
-// Warden-color map — used for project icon backgrounds AND modal chips
-const WARDEN_COLORS: Record<string, string> = {
-  ryan: '#FFD700', ptolemy: '#9B59B6', saroya: '#E74C3C',
-  melody: '#3498DB', cerulia: '#1ABC9C', affin: '#F39C12',
-  jewel: '#2ECC71', krishe: '#95A5A6', astyr: '#C0392B',
-  hurrian: '#2980B9', jovin: '#F1C40F', herus: '#7F8C8D',
-};
 
-const ALL_WARDENS = Object.keys(WARDEN_COLORS) as Array<keyof typeof WARDEN_COLORS>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Stat display helpers
@@ -393,7 +404,7 @@ function NewProjectModal({ onClose }: NewProjectModalProps) {
               gridTemplateColumns: 'repeat(auto-fill, minmax(92px, 1fr))',
               gap: 8,
             }}>
-              {ALL_WARDENS.map((w) => {
+              {ALL_WARDEN_IDS.map((w) => {
                 const color   = WARDEN_COLORS[w];
                 const selected = wardens.includes(w);
                 return (
@@ -502,19 +513,63 @@ interface DashboardProps {
   onNavigate: (page: Page, warden?: string) => void;
 }
 
+// ── Embedding Worker Status shape ───────────────────────────────────────────
+
+interface EmbeddingWorkerStatus {
+  uptime: string;
+  totalEmbedded: number;
+  totalErrors: number;
+  status: string;
+}
+
 export default function Dashboard({ onNavigate }: DashboardProps) {
   const [time, setTime]               = useState('');
   const [expandedVec, setExpandedVec] = useState(false);
   const [showModal, setShowModal]     = useState(false);
 
-  const { data: projects, loading: projectsLoading } = useProjects();
-  const { data: stats,    loading: statsLoading }    = useKingdomStats();
+  const { data: projects, loading: projectsLoading }  = useProjects();
+  const { data: stats,    loading: statsLoading }     = useKingdomStats();
+  const { data: activity, loading: activityLoading }  = useActivity();
+  const { data: tokenStats, loading: tokenLoading }   = useTokenUsage();
+
+  // Embedding worker status (localhost:4002)
+  const [embedStatus, setEmbedStatus] = useState<EmbeddingWorkerStatus | null>(null);
+  const [embedError, setEmbedError]   = useState(false);
 
   useEffect(() => {
     const tick = () => setTime(new Date().toLocaleTimeString('en-US', { hour12: false }));
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
+  }, []);
+
+  // Poll embedding worker every 30 seconds
+  useEffect(() => {
+    let cancelled = false;
+    const fetchStatus = async () => {
+      try {
+        const res = await fetch('http://localhost:4002', { signal: AbortSignal.timeout(3000) });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!cancelled) {
+          setEmbedStatus({
+            uptime: data.uptime ?? data.uptimeHuman ?? '—',
+            totalEmbedded: data.totalEmbedded ?? data.total_embedded ?? 0,
+            totalErrors: data.totalErrors ?? data.total_errors ?? 0,
+            status: data.status ?? 'online',
+          });
+          setEmbedError(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setEmbedStatus(null);
+          setEmbedError(true);
+        }
+      }
+    };
+    fetchStatus();
+    const id = setInterval(fetchStatus, 30_000);
+    return () => { cancelled = true; clearInterval(id); };
   }, []);
 
   const openModal  = useCallback(() => setShowModal(true),  []);
@@ -721,25 +776,45 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         {/* Right column */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-          {/* Activity feed */}
+          {/* Activity feed — live from Firestore */}
           <div className="card">
             <div className="section-header">
               <h2 className="section-title">⚡ Activity</h2>
             </div>
-            <div className="activity-feed">
-              {ACTIVITY.map((a, i) => (
-                <div key={i} className="activity-item">
-                  <div className="activity-dot" style={{ background: a.color, boxShadow: `0 0 6px ${a.color}60` }} />
-                  <div className="activity-content">
-                    <div className="activity-text">
-                      <span style={{ color: a.color, fontWeight: 600 }}>{a.warden}</span>{' '}
-                      <span dangerouslySetInnerHTML={{ __html: a.text }} />
+
+            {activityLoading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="skeleton" style={{ height: 40, borderRadius: 8 }} />
+                ))}
+              </div>
+            ) : activity.length === 0 ? (
+              <div className="empty-state" style={{ padding: '24px 16px' }}>
+                <div className="empty-state-icon">⚡</div>
+                <div className="empty-state-title">No activity yet.</div>
+                <div className="empty-state-sub">Recent wiki edits, file uploads, and project changes will appear here.</div>
+              </div>
+            ) : (
+              <div className="activity-feed">
+                {activity.map((a) => {
+                  const color = WARDEN_COLORS[a.warden] ?? 'var(--text-muted)';
+                  return (
+                    <div key={`${a.type}-${a.id}`} className="activity-item">
+                      <div className="activity-dot" style={{ background: color, boxShadow: `0 0 6px ${color}60` }} />
+                      <div className="activity-content">
+                        <div className="activity-text">
+                          <span style={{ color, fontWeight: 600, textTransform: 'capitalize' }}>{a.warden}</span>{' '}
+                          {ACTION_VERB[a.action] ?? a.action}{' '}
+                          {TYPE_ICON[a.type] ?? ''}{' '}
+                          <strong>{a.title}</strong>
+                        </div>
+                        <div className="activity-time">{timeAgo(a.timestamp)}</div>
+                      </div>
                     </div>
-                    <div className="activity-time">{a.time}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Quick access */}
@@ -764,6 +839,170 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Token Usage widget */}
+          <div className="card">
+            <div className="section-header">
+              <h2 className="section-title">💰 Token Usage</h2>
+            </div>
+
+            {tokenLoading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="skeleton" style={{ height: 28, borderRadius: 6 }} />
+                ))}
+              </div>
+            ) : !tokenStats || tokenStats.records.length === 0 ? (
+              <div className="empty-state" style={{ padding: '24px 16px' }}>
+                <div className="empty-state-icon">💰</div>
+                <div className="empty-state-title">No usage data yet.</div>
+                <div className="empty-state-sub">Token logging activates with MCP</div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {/* Total cost */}
+                <div style={{
+                  padding: '14px 16px', borderRadius: 10,
+                  background: 'var(--surface-2)', border: '1px solid var(--border)',
+                  textAlign: 'center',
+                }}>
+                  <div style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: '1.75rem', fontWeight: 700,
+                    color: 'var(--gold)',
+                    letterSpacing: '-0.02em',
+                  }}>
+                    ${tokenStats.totalCost.toFixed(4)}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                    Estimated cost · {tokenStats.records.length} records ·{' '}
+                    {((tokenStats.totalInput + tokenStats.totalOutput) / 1000).toFixed(1)}K tokens
+                  </div>
+                </div>
+
+                {/* Cost by model tier bars */}
+                <div>
+                  <div style={{ fontSize: '0.6875rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 8 }}>
+                    By Model
+                  </div>
+                  {Object.entries(tokenStats.byModel)
+                    .sort(([, a], [, b]) => b.cost - a.cost)
+                    .slice(0, 5)
+                    .map(([model, stats]) => {
+                      const pct = tokenStats.totalCost > 0
+                        ? (stats.cost / tokenStats.totalCost) * 100
+                        : 0;
+                      // Color by tier-ish heuristic
+                      const barColor = model.includes('flash') ? '#1abc9c'
+                        : model.includes('claude') || model.includes('sonnet') ? '#9B59B6'
+                        : model.includes('gemini') ? '#3498DB'
+                        : 'var(--gold)';
+                      return (
+                        <div key={model} style={{ marginBottom: 6 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: 3 }}>
+                            <span style={{ color: 'var(--text-secondary)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.6875rem' }}>
+                              {model}
+                            </span>
+                            <span style={{ color: 'var(--text-muted)' }}>
+                              ${stats.cost.toFixed(4)}
+                            </span>
+                          </div>
+                          <div style={{ height: 4, borderRadius: 2, background: 'var(--surface-3, #12101a)', overflow: 'hidden' }}>
+                            <div style={{
+                              width: `${Math.max(2, pct)}%`, height: '100%',
+                              borderRadius: 2, background: barColor,
+                              transition: 'width 0.3s ease',
+                            }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+
+                {/* Top wardens by token count */}
+                <div>
+                  <div style={{ fontSize: '0.6875rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 8 }}>
+                    Top Wardens
+                  </div>
+                  {Object.entries(tokenStats.byWarden)
+                    .sort(([, a], [, b]) => (b.input + b.output) - (a.input + a.output))
+                    .slice(0, 3)
+                    .map(([warden, ws]) => {
+                      const color = WARDEN_COLORS[warden] ?? 'var(--text-muted)';
+                      return (
+                        <div key={warden} style={{
+                          display: 'flex', alignItems: 'center', gap: 8,
+                          padding: '5px 0', borderBottom: '1px solid var(--border)',
+                        }}>
+                          <span style={{
+                            width: 8, height: 8, borderRadius: '50%',
+                            background: color, flexShrink: 0,
+                            boxShadow: `0 0 6px ${color}60`,
+                          }} />
+                          <span style={{ flex: 1, fontSize: '0.8125rem', color: 'var(--text-primary)', textTransform: 'capitalize' }}>
+                            {warden}
+                          </span>
+                          <span style={{ fontSize: '0.6875rem', fontFamily: "'JetBrains Mono', monospace", color: 'var(--text-muted)' }}>
+                            {((ws.input + ws.output) / 1000).toFixed(1)}K
+                          </span>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Embedding Worker Status widget */}
+          <div className="card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <span style={{ fontSize: '1rem' }}>🧬</span>
+              <h2 className="section-title">Embedding Worker</h2>
+              <span style={{
+                marginLeft: 'auto',
+                width: 8, height: 8, borderRadius: '50%',
+                background: embedError ? '#e74c3c' : '#1abc9c',
+                boxShadow: embedError ? '0 0 6px #e74c3c80' : '0 0 6px #1abc9c80',
+              }} />
+            </div>
+
+            {embedError ? (
+              <div style={{
+                padding: '12px 14px', borderRadius: 8,
+                background: 'rgba(231,76,60,0.08)', border: '1px solid rgba(231,76,60,0.2)',
+                fontSize: '0.8125rem', color: '#e74c3c', lineHeight: 1.5,
+              }}>
+                Worker offline — embedding will resume when <code style={{ fontSize: '0.75rem' }}>localhost:4002</code> is reachable.
+              </div>
+            ) : embedStatus ? (
+              <div style={{ display: 'flex', gap: 12 }}>
+                {[
+                  { label: 'Uptime', value: embedStatus.uptime },
+                  { label: 'Embedded', value: String(embedStatus.totalEmbedded) },
+                  { label: 'Errors', value: String(embedStatus.totalErrors) },
+                ].map((s) => (
+                  <div key={s.label} style={{
+                    flex: 1, textAlign: 'center',
+                    padding: '10px 8px', borderRadius: 8,
+                    background: 'var(--surface-2)', border: '1px solid var(--border)',
+                  }}>
+                    <div style={{
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontSize: '1rem', fontWeight: 700,
+                      color: s.label === 'Errors' && Number(s.value) > 0 ? '#e74c3c' : 'var(--text-primary)',
+                    }}>
+                      {s.value}
+                    </div>
+                    <div style={{ fontSize: '0.625rem', color: 'var(--text-muted)', marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      {s.label}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="skeleton" style={{ height: 52, borderRadius: 8 }} />
+            )}
           </div>
 
           {/* Vault build status */}

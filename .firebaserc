@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "omnia-kingdom-vault"
-  }
+  },
+  "targets": {
+    "omnia-kingdom-vault": {
+      "storage": {
+        "main": [
+          "omnia-kingdom-vault-storage"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

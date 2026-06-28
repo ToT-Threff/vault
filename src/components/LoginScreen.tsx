@@ -17,8 +17,19 @@ export default function LoginScreen() {
     setError(null);
     try {
       await signIn();
-    } catch {
-      setError('Sign-in failed. Ensure you are using an authorized account.');
+      // onAuthStateChanged will update user state — AuthGate handles the transition
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code ?? '';
+      console.error('[LoginScreen] signIn error:', code, err);
+      if (code === 'auth/unauthorized-domain') {
+        setError('Domain not authorized. Add vault.ptolemy.live to Firebase Auth → Authorized domains.');
+      } else if (code === 'auth/cancelled-popup-request' || code === 'auth/popup-closed-by-user') {
+        setError(null); // user closed the popup — not an error
+      } else if (code) {
+        setError(`Sign-in failed (${code}) — check browser console.`);
+      } else {
+        setError('Sign-in failed. Try again.');
+      }
       setSigning(false);
     }
   }
