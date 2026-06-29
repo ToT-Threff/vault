@@ -10,8 +10,10 @@ import Files from '@/components/pages/Files';
 import Analytics from '@/components/pages/Analytics';
 import TokenMonitor from '@/components/pages/TokenMonitor';
 import Benchmark from '@/components/pages/Benchmark';
+import Interviews from '@/components/pages/Interviews';
+import Voicebox from '@/components/pages/Voicebox';
 
-export type Page = 'dashboard' | 'wiki' | 'memories' | 'files' | 'analytics' | 'tokens' | 'benchmark';
+export type Page = 'dashboard' | 'wiki' | 'memories' | 'files' | 'analytics' | 'tokens' | 'benchmark' | 'interviews' | 'voicebox';
 
 export default function Home() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
@@ -39,6 +41,8 @@ export default function Home() {
         {currentPage === 'analytics'  && <Analytics />}
         {currentPage === 'tokens'     && <TokenMonitor />}
         {currentPage === 'benchmark'  && <Benchmark />}
+        {currentPage === 'interviews' && <Interviews />}
+        {currentPage === 'voicebox'   && <Voicebox />}
       </main>
     </div>
   );

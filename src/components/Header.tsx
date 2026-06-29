@@ -11,6 +11,8 @@ const PAGE_LABELS: Record<Page, string> = {
   analytics:  'Analytics',
   tokens:     'Token Monitor',
   benchmark:  'Benchmarks',
+  interviews: 'Grill-Me Specs',
+  voicebox:   'Voicebox Studio',
 };
 
 interface HeaderProps {

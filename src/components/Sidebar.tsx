@@ -8,13 +8,15 @@ import { checkOllamaHealth } from '@/lib/embedding';
 
 
 const NAV_ITEMS = [
-  { id: 'dashboard', label: 'Kingdom Dashboard', icon: '▦' },
-  { id: 'wiki',      label: 'Archival Wiki',      icon: '◫' },
-  { id: 'memories',  label: 'Memory Browser',     icon: '◉' },
-  { id: 'files',     label: 'File Vault',          icon: '⬡' },
-  { id: 'analytics', label: 'Analytics',           icon: '◈' },
-  { id: 'tokens',    label: 'Token Monitor',       icon: '⬡' },
+  { id: 'dashboard',  label: 'Kingdom Dashboard', icon: '▦' },
+  { id: 'wiki',       label: 'Archival Wiki',      icon: '◫' },
+  { id: 'memories',   label: 'Memory Browser',     icon: '◉' },
+  { id: 'files',      label: 'File Vault',          icon: '⬡' },
+  { id: 'analytics',  label: 'Analytics',           icon: '◈' },
+  { id: 'tokens',     label: 'Token Monitor',       icon: '⬡' },
   { id: 'benchmark',  label: 'Benchmarks',         icon: '⚡' },
+  { id: 'interviews', label: 'Grill-Me Specs',     icon: '⚖' },
+  { id: 'voicebox',   label: 'Voicebox Studio',    icon: '🗣' },
 ];
 
 interface SidebarProps {
