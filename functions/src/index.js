@@ -554,7 +554,10 @@ exports.initEmperorClaim = functions.auth.user().onCreate(async (user) => {
  *   - data.githubUrl present    (created by sync-projects.sh, not the vault UI)
  */
 exports.onProjectCreated = onDocumentCreated(
-  'kingdom/projects/items/{projectId}',
+  {
+    document: 'kingdom/projects/items/{projectId}',
+    secrets: ['GITHUB_PAT'],
+  },
   async (event) => {
     const projectId = event.params.projectId;
     const snap = event.data;
